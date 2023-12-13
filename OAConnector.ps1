@@ -62,14 +62,14 @@ class OAConnector{
         return $auth
     }
     
-    [System.Xml.XmlElement] GenerateReadElement([xml] $xml, [string]$type, [string]$method, [hashtable]$queryData, [switch]$customFields, [int]$limit){
+    [System.Xml.XmlElement] GenerateReadElement([xml] $xml, [string]$type, [string]$method, [hashtable]$queryData, [boolean]$customFields, [int]$limit){
         $typeElement = $xml.CreateElement($type)
         foreach ($key in $queryData.Keys){
             $queryElement = $xml.CreateElement($key)
             $queryElement.InnerText = $queryData.$key
             $typeElement.AppendChild($queryElement)
         }
-        
+        Write-Host "Emable custom current value: $customFields"
         $readElement = $xml.CreateElement("Read")
         $readElement.SetAttribute("type","$type")
         $readElement.SetAttribute("method","$method")
@@ -79,18 +79,75 @@ class OAConnector{
         return $readElement
     }
 
-    [System.Xml.XmlElement] GenerateTimeElement($xml){
+    [System.Xml.XmlElement] GenerateTimeElement([xml]$xml){
         $timeElement = $xml.CreateElement("Time")
         $timeElement.InnerText = " "
         return $timeElement
     }
-    [System.Xml.XmlElement] GenerateWhoamiElement($xml){
+    [System.Xml.XmlElement] GenerateWhoamiElement([xml]$xml){
         $timeElement = $xml.CreateElement("Whoami")
         $timeElement.InnerText = " "
         return $timeElement
     }
 
-    [xml] GenerateReadRequest([string]$type, [string]$method, [hashtable]$queryData, [switch]$customFields, [int]$limit){
+    [System.Xml.XmlElement] GenerateCreateUserElement([xml]$xml, [string]$username, [string]$userEmail, [string]$firstName, [string]$lastName){
+        <# 
+        required fields in UI:
+          - userID = user nickname
+          - LastName
+          - FirstName - not exactly but required by us
+          - email
+          - password
+          - manager
+          - job code
+          - department 
+          - country (?) - custom field but required in gui
+          - employment status (?) - custom field but required in gui
+          - company (?) - custom field but required in gui
+          - Functions for Utilisation (?) - custom field but required in gui
+          - Contract type (?) - custom field but required in gui
+
+          API Accepts data with First Name, Last Name, email, userID, password only and accepts it (sic!)
+        #>
+        $createUserElement = $xml.CreateElement("CreateUser")
+        
+        $nicknameElement = $xml.CreateElement("nickname")
+        $nicknameElement.InnerText = "$($this.OACredentials.Company)"
+        $companyElement = $xml.CreateElement("Company") 
+        $companyElement.AppendChild($nicknameElement)
+        $createUserElement.AppendChild($companyElement)
+
+        $userElement = $xml.CreateElement("User")
+
+        $userNickElement = $xml.CreateElement("nickname")
+        $userNickElement.InnerText = $username
+        $userElement.AppendChild($userNickElement)
+        $passwordElement = $xml.CreateElement("password")
+        $passwordElement.InnerText = "Changem3"
+        $userElement.AppendChild($passwordElement)
+
+        $addressElement = $xml.CreateElement("Address")
+        $emailElement = $xml.CreateElement("email")
+        $emailElement.InnerText = $userEmail
+        $addressElement.AppendChild($emailElement)
+        
+        $firstNameElement = $xml.CreateElement("first")
+        $firstNameElement.InnerText = $firstName
+        $addressElement.AppendChild($firstNameElement)
+
+        $lastNameElement = $xml.CreateElement("last")
+        $lastNameElement.InnerText = $lastName
+        $addressElement.AppendChild($lastNameElement)
+
+        $addrElement = $xml.CreateElement("addr")
+        $addrElement.AppendChild($addressElement)
+        $userElement.AppendChild($addrElement)
+
+        $createUserElement.AppendChild($userElement)
+        return $createUserElement
+    }
+
+    [xml] GenerateReadRequest([string]$type, [string]$method, [hashtable]$queryData, [boolean]$customFields, [int]$limit){
         $request = $this.xmlDocument.Clone()
         $authElement = $this.GenerateAuthElement($request)
         $request.DocumentElement.AppendChild($authElement)
@@ -107,7 +164,7 @@ class OAConnector{
         return $this.GenerateReadRequest($type, $method, $queryData, $false, $limit)
     }
 
-    [xml] GenerateReadRequest([string]$type, [string]$method, [hashtable]$queryData, [switch]$customFields){
+    [xml] GenerateReadRequest([string]$type, [string]$method, [hashtable]$queryData, [boolean]$customFields){
         return $this.GenerateReadRequest($type, $method, $queryData, $customFields, 10)
     }
 
@@ -134,6 +191,15 @@ class OAConnector{
         return $request
     }
 
+    [xml] GenerateCreateUserRequest([string]$username, [string]$userEmail, [string]$firstName, [string]$lastName){
+        $request = $this.xmlDocument.Clone()
+        $authElement = $this.GenerateAuthElemen($request)
+        $request.DocumentElement.AppendChild($authElement)
+        $createUserElement = $this.GenerateCreateUserElement($request, $username, $userEmail, $firstName, $lastName)
+        $request.DocumentElement.AppendChild($createUserElement)
+        return $request
+    }
+
     [xml] SendRequest([OARequestType] $type, [hashtable]$params){
         $request = $null
         switch($type){
@@ -157,20 +223,27 @@ class OAConnector{
             Whoami {
                 $request = $this.GenerateWhoamiRequest()
             }
-            Auth{
+            Auth {
                 $request = $this.GenerateAuthRequest()
             }
+            CreateUser {
+                $request = $this.GenerateCreateUserRequest($params.username, $params.userEmail, $params.firstName, $params.lastName)
+            }
             default {
-                $request = New-Object -TypeName xml
+                $request = $this.xmlDocument.Clone()
             }
         }
         try{
-            $response = Invoke-WebRequest $this.OAApiEndpoint -Method POST -Body $request.OuterXml -Headers @{"Content-Type"="application/xml"} -Verbose
+            $response = Invoke-WebRequest $this.OAApiEndpoint -Method POST -Body $request.OuterXml -Headers @{"Content-Type"="application/xml"}
             return [xml]$response.Content
         }
         catch{
             Write-Error "An error occured: $_"
         }
         return $null
+    }
+
+    [xml] SendRequest([OARequestType] $type){
+        return $this.SendRequest($type, @{})
     }
 }
