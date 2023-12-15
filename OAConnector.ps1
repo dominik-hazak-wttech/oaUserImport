@@ -5,6 +5,7 @@ enum OARequestType{
     Time
     Auth
 }
+
 class OAConnector{
     
     [string] $namespace
@@ -12,6 +13,7 @@ class OAConnector{
     [hashtable] $OACredentials
     [xml] $xmlDocument
     [string] $OAApiEndpoint = "https://cognifide-ltd.app.sandbox.openair.com/api.pl"
+    [array] $userCreationRequired
 
     OAConnector([string]$namespace, [string]$apiKey){
         $this.namespace = $namespace
@@ -20,6 +22,25 @@ class OAConnector{
         Write-Host "Provide OpenAir credentials"
         $company = Read-Host -Prompt "Company"
         $login = Read-Host -Prompt "Login"
+        $password = Read-Host -Prompt "Password" -MaskInput
+        $this.OACredentials = @{"Company" = $company; "User" = $login; "Password" = $password}
+        $this.xmlDocument = $this.GenerateRequestDocument()
+    }
+    
+    OAConnector([string]$namespace, [string]$apiKey, [string]$company, [string]$login){
+        $this.namespace = $namespace
+        $this.apiKey = $apiKey
+
+        Write-Host "Provide OpenAir credentials"
+        $newCompany = Read-Host -Prompt "Company (currently: $company)"
+        if($newCompany){
+            $company = $newCompany
+        }
+        $newLogin = Read-Host -Prompt "Login (currently: $login)"
+        if($newLogin)
+        {
+            $login = $newLogin
+        }
         $password = Read-Host -Prompt "Password" -MaskInput
         $this.OACredentials = @{"Company" = $company; "User" = $login; "Password" = $password}
         $this.xmlDocument = $this.GenerateRequestDocument()
@@ -90,25 +111,24 @@ class OAConnector{
         return $timeElement
     }
 
-    [System.Xml.XmlElement] GenerateCreateUserElement([xml]$xml, [string]$username, [string]$userEmail, [string]$firstName, [string]$lastName){
-        <# 
-        required fields in UI:
-          - userID = user nickname
-          - LastName
-          - FirstName - not exactly but required by us
-          - email
-          - password
-          - manager
-          - job code
-          - department 
-          - country (?) - custom field but required in gui
-          - employment status (?) - custom field but required in gui
-          - company (?) - custom field but required in gui
-          - Functions for Utilisation (?) - custom field but required in gui
-          - Contract type (?) - custom field but required in gui
+    [System.Xml.XmlElement] GenerateCreateUserElement([xml]$xml, [string]$firstName, [string]$lastName, [string]$userEmail, [hashtable]$parameters){
+        if(-not $parameters.Keys -contains "nickname"){ Write-Host -ForegroundColor Red "Parameters are missing nickname!";return $null }
+        if(-not $parameters.Keys -contains "line_managerid"){ Write-Host -ForegroundColor Red "Parameters are missing line_managerid!";return $null }
+        if(-not $parameters.Keys -contains "departmentid"){ Write-Host -ForegroundColor Red "Parameters are missing departmentid!";return $null }
+        if(-not $parameters.Keys -contains "job_codeid"){ Write-Host -ForegroundColor Red "Parameters are missing job_codeid!";return $null }
+        if(-not $parameters.Keys -contains "UserCountry__c"){ Write-Host -ForegroundColor Red "Parameters are missing UserCountry__c!";return $null }
+        if(-not $parameters.Keys -contains "EmploymentStatus__c"){ Write-Host -ForegroundColor Red "Parameters are missing EmploymentStatus__c!";return $null }
+        if(-not $parameters.Keys -contains "Contract_type__c"){ Write-Host -ForegroundColor Red "Parameters are missing Contract_type__c!";return $null }
+        if(-not $parameters.Keys -contains "JobFunction__c"){ Write-Host -ForegroundColor Red "Parameters are missing JobFunction__c!";return $null }
+        if(-not $parameters.Keys -contains "Company__c"){ Write-Host -ForegroundColor Red "Parameters are missing Company__c!";return $null }
+        if(-not $parameters.Keys -contains "UserLocation__c"){ Write-Host -ForegroundColor Red "Parameters are missing UserLocation__c!";return $null }
+        if(-not $parameters.Keys -contains "CoE__c"){ Write-Host -ForegroundColor Red "Parameters are missing CoE__c!";return $null }
+        if(-not $parameters.Keys -contains "Clan__c"){ Write-Host -ForegroundColor Red "Parameters are missing Clan__c!";return $null }
+        if(-not $parameters.Keys -contains "Billability__c"){ Write-Host -ForegroundColor Red "Parameters are missing Billability__c!";return $null }
+        if(-not $parameters.Keys -contains "VaultCode__c"){ Write-Host -ForegroundColor Red "Parameters are missing VaultCode__c!";return $null }
+        if(-not $parameters.Keys -contains "active"){ Write-Host -ForegroundColor Red "Parameters are missing active!";return $null }
+        if(-not $parameters.Keys -contains "rate"){ Write-Host -ForegroundColor Red "Parameters are missing rate!";return $null }
 
-          API Accepts data with First Name, Last Name, email, userID, password only and accepts it (sic!)
-        #>
         $createUserElement = $xml.CreateElement("CreateUser")
         
         $nicknameElement = $xml.CreateElement("nickname")
@@ -118,14 +138,6 @@ class OAConnector{
         $createUserElement.AppendChild($companyElement)
 
         $userElement = $xml.CreateElement("User")
-
-        $userNickElement = $xml.CreateElement("nickname")
-        $userNickElement.InnerText = $username
-        $userElement.AppendChild($userNickElement)
-        $passwordElement = $xml.CreateElement("password")
-        $passwordElement.InnerText = "Changem3"
-        $userElement.AppendChild($passwordElement)
-
         $addressElement = $xml.CreateElement("Address")
         $emailElement = $xml.CreateElement("email")
         $emailElement.InnerText = $userEmail
@@ -142,6 +154,15 @@ class OAConnector{
         $addrElement = $xml.CreateElement("addr")
         $addrElement.AppendChild($addressElement)
         $userElement.AppendChild($addrElement)
+
+        foreach ($key in $parameters.Keys){
+            $parameterElement = $xml.CreateElement($key)
+            $parameterElement.InnerText = $parameters[$key]
+            $userElement.AppendChild($parameterElement)
+        }
+        $passwordElement = $xml.CreateElement("password")
+        $passwordElement.InnerText = "Changem3"
+        $userElement.AppendChild($passwordElement)
 
         $createUserElement.AppendChild($userElement)
         return $createUserElement
@@ -191,11 +212,23 @@ class OAConnector{
         return $request
     }
 
-    [xml] GenerateCreateUserRequest([string]$username, [string]$userEmail, [string]$firstName, [string]$lastName){
+    [xml] GenerateCreateUserRequest([string]$firstName, [string]$lastName, [string]$userEmail, [hashtable]$parameters){
         $request = $this.xmlDocument.Clone()
-        $authElement = $this.GenerateAuthElemen($request)
+        $authElement = $this.GenerateAuthElement($request)
         $request.DocumentElement.AppendChild($authElement)
-        $createUserElement = $this.GenerateCreateUserElement($request, $username, $userEmail, $firstName, $lastName)
+        $createUserElement = $this.GenerateCreateUserElement($request, $firstName, $lastName, $userEmail, $parameters)
+        $request.DocumentElement.AppendChild($createUserElement)
+        return $request
+    }
+
+    [xml] GenerateCreateUserBulkRequest([array]$usersData){
+        if ($usersData.Count -ge 1000){
+            
+        }
+        $request = $this.xmlDocument.Clone()
+        $authElement = $this.GenerateAuthElement($request)
+        $request.DocumentElement.AppendChild($authElement)
+        $createUserElement = $this.GenerateCreateUserElement($request, $firstName, $lastName, $userEmail, $parameters)
         $request.DocumentElement.AppendChild($createUserElement)
         return $request
     }
@@ -227,7 +260,7 @@ class OAConnector{
                 $request = $this.GenerateAuthRequest()
             }
             CreateUser {
-                $request = $this.GenerateCreateUserRequest($params.username, $params.userEmail, $params.firstName, $params.lastName)
+                $request = $this.GenerateCreateUserRequest($params.firstName, $params.lastName, $params.userEmail, $params.parameters)
             }
             default {
                 $request = $this.xmlDocument.Clone()

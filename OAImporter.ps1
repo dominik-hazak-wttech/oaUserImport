@@ -1,4 +1,6 @@
+Import-Module PSExcel
 . ./OAConnector.ps1
+
 Write-Host "Loading configuration"
 $config = Get-Content -Path ./config.json | ConvertFrom-Json 
 Write-Host "Setting up connection to OpenAir"
@@ -10,7 +12,12 @@ do{
         $config.namespace = Read-Host -Prompt "Namespace"
         $config.apiKey = Read-Host -Prompt "API key"
     }
+    if(-not ($config.company -or $config.login)){
     $connector = [OAConnector]::new($config.namespace, $config.apiKey)
+    }
+    else{
+        $connector = [OAConnector]::new($config.namespace, $config.apiKey, $config.company, $config.login)
+    }
     Write-Host "Testing connection to OpenAir API...  " -NoNewline
     $timeResp = $connector.SendRequest([OARequestType]::Time)
     $timeOK = $timeResp.response.Time.status -eq 0
@@ -36,10 +43,10 @@ do{
             do{
                 $prompt = Read-Host -Prompt "Do you want to provide them again? (Y/N)"
                 if ($prompt.toLower() -eq "y"){
-                    continue
+                    break
                 }
                 elseif ($prompt.toLower() -eq "n"){
-                    $credLoop = $false
+                    return 1
                 }
                 else{
                     Write-Host "Please type 'y' or 'n'"
@@ -47,7 +54,6 @@ do{
             }
             while($credLoop)
         }
-        return 1
     }
     $connected = $authOK -and $timeOK
 }
@@ -58,14 +64,32 @@ do{
     Write-Host "Menu:"
     Write-Host "1. Read data from file"
     Write-Host "2. Read data from OpenAir"
-    Write-Host "3. Create user in OpenAir"
+    Write-Host "3. Create user in OpenAir (single)"
+    if($bulkData){
+        Write-Host "4. Create user in OpenAir (bulk from data)"
+    }
+    else{
+        Write-Host "4. Create user in OpenAir (bulk from data)" -ForegroundColor DarkGray
+    }
     Write-Host "0. Exit"
-    $prompt = Read-Host "Your choice [0-3]"
+    $prompt = Read-Host "Your choice [0-4]"
 
     switch($prompt){
         1 {
-            Write-Host "This feature is not yet implemented"
-            # Write-Host "Please provide path for data file"
+            $path = Read-Host "Please provide path for data file"
+            $type = Read-Host "Please provide file type (csv, xls)"
+            switch($type.ToLower()){
+                xls {
+                    $bulkData = Import-XLSX -Path $path
+                }
+                csv {
+                    $delim = Read-Host "What character divides data?"
+                    $bulkData = Import-Csv -Path $path -Delimiter $delim
+                }
+                default{
+                    Write-Host "Unknown file type $type. Please try again"
+                }
+            }
         }
         2{
             $type = Read-Host "Provide OpenAir Object Type to search for"
@@ -93,6 +117,40 @@ do{
             }
             $resp = $connector.SendRequest([OARequestType]::Read,$params)
             Write-Host ($resp.response.Read.User | Format-List | Out-String)
+        }
+        3 {
+            $params = @{}
+            $params.firstName = Read-Host "Provide user's first name"
+            $params.lastName = Read-Host "Provide user's last name"
+            $params.userEmail = Read-Host "Provide user's email"
+            
+            $parameters = @{}
+            $parameters.nickname = Read-Host "Provide data for username"
+            $parameters.line_managerid = Read-Host "Provide data for line manager (id)"
+            $parameters.departmentid = Read-Host "Provide data for department (id)"
+            $parameters.job_codeid = Read-Host "Provide data for job code (id)"
+            $parameters.UserCountry__c = Read-Host "Provide data for user country"
+            $parameters.EmploymentStatus__c = Read-Host "Provide data for employment status"
+            $parameters.Contract_type__c = Read-Host "Provide data for contract type"
+            $parameters.JobFunction__c = Read-Host "Provide data for functions for utilisation"
+            $parameters.Company__c = Read-Host "Provide data for company"
+            $parameters.UserLocation__c = Read-Host "Provide data for location"
+            $parameters.CoE__c = Read-Host "Provide data for CoE"
+            $parameters.Clan__c = ""
+            $parameters.Billability__c = Read-Host "Provide data for billability"
+            $parameters.VaultCode__c = ""
+            $parameters.active = "1"
+            $parameters.rate = ""
+            $params.parameters = $parameters
+            $resp = $connector.SendRequest([OARequestType]::CreateUser,$params)
+            Write-Host ($resp.response.CreateUser.User | Format-List | Out-String)
+        }
+        4{
+            if(-not $bulkData){
+                Write-Host "You need to load data first" -ForegroundColor Red
+                break
+            }
+            Write-Host "Not yet implemented"
         }
         0{
             $looping = $false
