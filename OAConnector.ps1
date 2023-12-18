@@ -1,6 +1,7 @@
 enum OARequestType{
     Read
     CreateUser
+    CreateUserBulk
     Whoami
     Time
     Auth
@@ -130,6 +131,7 @@ class OAConnector{
         if(-not $parameters.Keys -contains "rate"){ Write-Host -ForegroundColor Red "Parameters are missing rate!";return $null }
 
         $createUserElement = $xml.CreateElement("CreateUser")
+        $createUserElement.SetAttribute("enable_custom","1")
         
         $nicknameElement = $xml.CreateElement("nickname")
         $nicknameElement.InnerText = "$($this.OACredentials.Company)"
@@ -160,9 +162,6 @@ class OAConnector{
             $parameterElement.InnerText = $parameters[$key]
             $userElement.AppendChild($parameterElement)
         }
-        $passwordElement = $xml.CreateElement("password")
-        $passwordElement.InnerText = "Changem3"
-        $userElement.AppendChild($passwordElement)
 
         $createUserElement.AppendChild($userElement)
         return $createUserElement
@@ -223,13 +222,16 @@ class OAConnector{
 
     [xml] GenerateCreateUserBulkRequest([array]$usersData){
         if ($usersData.Count -ge 1000){
-            
+            Write-Host -ForegroundColor Red "Amount of data exceeds limit of 1000 users to be created in one request!"
+            throw "Amount of data exceeds limit of 1000 users to be created in one request!"
         }
         $request = $this.xmlDocument.Clone()
         $authElement = $this.GenerateAuthElement($request)
         $request.DocumentElement.AppendChild($authElement)
-        $createUserElement = $this.GenerateCreateUserElement($request, $firstName, $lastName, $userEmail, $parameters)
-        $request.DocumentElement.AppendChild($createUserElement)
+        foreach($userData in $usersData){
+            $createUserElement = $this.GenerateCreateUserElement($request, $userData.firstName, $userData.lastName, $userData.userEmail, $userData.parameters)
+            $request.DocumentElement.AppendChild($createUserElement)
+        }
         return $request
     }
 
@@ -261,6 +263,9 @@ class OAConnector{
             }
             CreateUser {
                 $request = $this.GenerateCreateUserRequest($params.firstName, $params.lastName, $params.userEmail, $params.parameters)
+            }
+            CreateUserBulk {
+                $request = $this.GenerateCreateUserBulkRequest($params.usersData)
             }
             default {
                 $request = $this.xmlDocument.Clone()
