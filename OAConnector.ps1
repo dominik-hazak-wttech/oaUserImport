@@ -5,6 +5,9 @@ enum OARequestType{
     Whoami
     Time
     Auth
+    DeleteUser
+    Modify
+    ModifyBulk
 }
 
 class OAConnector{
@@ -16,9 +19,12 @@ class OAConnector{
     [string] $OAApiEndpoint = "https://cognifide-ltd.app.sandbox.openair.com/api.pl"
     [array] $userCreationRequired
 
-    OAConnector([string]$namespace, [string]$apiKey){
+    OAConnector([string]$namespace, [string]$apiKey, [string]$apiUrl){
         $this.namespace = $namespace
         $this.apiKey = $apiKey
+        if($null -ne $apiUrl){
+            $this.OAApiEndpoint = $apiUrl
+        }
 
         Write-Host "Provide OpenAir credentials"
         $company = Read-Host -Prompt "Company"
@@ -28,9 +34,12 @@ class OAConnector{
         $this.xmlDocument = $this.GenerateRequestDocument()
     }
     
-    OAConnector([string]$namespace, [string]$apiKey, [string]$company, [string]$login){
+    OAConnector([string]$namespace, [string]$apiKey, [string]$apiUrl, [string]$company, [string]$login){
         $this.namespace = $namespace
         $this.apiKey = $apiKey
+        if($null -ne $apiUrl){
+            $this.OAApiEndpoint = $apiUrl
+        }
 
         Write-Host "Provide OpenAir credentials"
         $newCompany = Read-Host -Prompt "Company (currently: $company)"
@@ -167,6 +176,39 @@ class OAConnector{
         return $createUserElement
     }
 
+    [System.Xml.XmlElement] GenerateDeleteUserElement([xml]$xml, [string]$id){
+        $idElement = $xml.CreateElement("id")
+        $idElement.InnerText = $id
+
+        $userElement = $xml.CreateElement("User")
+        $userElement.AppendChild($idElement)
+
+        $deleteElement = $xml.CreateElement("Delete")
+        $deleteElement.SetAttribute("type","User")
+        $deleteElement.AppendChild($userElement)
+        return $deleteElement
+    }
+    
+    [System.Xml.XmlElement] GenerateModifyElement([xml]$xml, [string]$type, [string]$id, [hashtable]$dataToUpdate){
+        $idElement = $xml.CreateElement("id")
+        $idElement.InnerText = $id
+
+        $typeElement = $xml.CreateElement($type)
+        $typeElement.AppendChild($idElement)
+
+        foreach($key in $dataToUpdate.Keys){
+            $attrElement = $xml.CreateElement($key)
+            $attrElement.InnerText = $dataToUpdate.$key
+            $typeElement.AppendChild($attrElement)
+        }
+
+        $modifyElement = $xml.CreateElement("Modify")
+        $modifyElement.SetAttribute("type",$type)
+        $modifyElement.SetAttribute("enable_custom","1")
+        $modifyElement.AppendChild($typeElement)
+        return $modifyElement
+    }
+
     [xml] GenerateReadRequest([string]$type, [string]$method, [hashtable]$queryData, [boolean]$customFields, [int]$limit){
         $request = $this.xmlDocument.Clone()
         $authElement = $this.GenerateAuthElement($request)
@@ -235,6 +277,37 @@ class OAConnector{
         return $request
     }
 
+    [xml] GenerateDeleteUserRequest([array]$userIDs){
+        $request = $this.xmlDocument.Clone()
+        $authElement = $this.GenerateAuthElement($request)
+        $request.DocumentElement.AppendChild($authElement)
+        foreach($id in $userIDs){
+            $deleteUserElement = $this.GenerateDeleteUserElement($request,$id)
+            $request.DocumentElement.AppendChild($deleteUserElement)
+        }
+        return $request
+    }
+
+    [xml] GenerateModifyRequest([string]$type, [string]$id, [hashtable]$dataToUpdate){
+        $request = $this.xmlDocument.Clone()
+        $authElement = $this.GenerateAuthElement($request)
+        $request.DocumentElement.AppendChild($authElement)
+        $modifyElement = $this.GenerateModifyElement($request, $type, $id, $dataToUpdate)
+        $request.DocumentElement.AppendChild($modifyElement)
+        return $request
+    }
+
+    [xml] GenerateModifyBulkRequest([array]$modifyRequests){
+        $request = $this.xmlDocument.Clone()
+        $authElement = $this.GenerateAuthElement($request)
+        $request.DocumentElement.AppendChild($authElement)
+        foreach($modifyRequest in $modifyRequests){
+            $modifyElement = $this.GenerateModifyElement($request, $modifyRequest.type, $modifyRequest.id, $modifyRequest.dataToUpdate)
+            $request.DocumentElement.AppendChild($modifyElement)
+        }
+        return $request
+    }
+
     [xml] SendRequest([OARequestType] $type, [hashtable]$params){
         $request = $null
         switch($type){
@@ -266,6 +339,15 @@ class OAConnector{
             }
             CreateUserBulk {
                 $request = $this.GenerateCreateUserBulkRequest($params.usersData)
+            }
+            DeleteUser {
+                $request = $this.GenerateDeleteUserRequest($params.userIDs)
+            }
+            Modify {
+                $request = $this.GenerateModifyRequest($params.type, $params.id, $params.dataToUpdate)
+            }
+            ModifyBulk {
+                $request = $this.GenerateModifyBulkRequest($params.modifyRequests)
             }
             default {
                 $request = $this.xmlDocument.Clone()
