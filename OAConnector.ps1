@@ -171,7 +171,19 @@ class OAConnector{
             $parameterElement.InnerText = $parameters[$key]
             $userElement.AppendChild($parameterElement)
         }
+        $flagElement = $xml.CreateElement("Flag")
+        $flagNameElement = $xml.CreateElement("name")
+        $flagNameElement.InnerText = "ta_timesheet_required"
+        $flagElement.AppendChild($flagNameElement)
 
+        $flagSettingElement = $xml.CreateElement("setting")
+        $flagSettingElement.InnerText = "0"
+        $flagElement.AppendChild($flagSettingElement)
+
+        $flagsElement = $xml.CreateELement("flags")
+        $flagsElement.AppendChild($flagElement)
+        $userElement.AppendChild($flagsElement)
+        
         $createUserElement.AppendChild($userElement)
         return $createUserElement
     }

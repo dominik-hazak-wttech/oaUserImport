@@ -236,7 +236,9 @@ do{
                 Write-Host "Saving transaction file"
                 $transactionID = New-Guid
                 $successIDs = ($resp.response.CreateUser | Where-Object {$_.status -eq "0"} | Select-Object -Property id).id
+                $createdUserIDs = ($resp.response.CreateUser.User | Select-Object -Property nickname).nickname
                 Set-Content -Path "$logFolder/$transactionID.txt" ($successIDs -join ';')
+                Set-Content -Path "$logFolder/createdUsers-$transactionID.txt" ($createdUserIDs -join ';')
                 $failedRequests = @()
                 if ($resp.response.CreateUser.Count -eq 1){
                     if($resp.response.CreateUser.status -ne 0){
@@ -370,16 +372,32 @@ do{
                 Write-Host "Saving transaction file"
                 $transactionID = New-Guid
                 $successIDs = ($resp.response.CreateUser.User | Select-Object -Property id).id
+                $createdUserIDs = ($resp.response.CreateUser.User | Select-Object -Property nickname).nickname
+                Set-Content -Path "$logFolder/createdUsers-$transactionID.txt" ($createdUserIDs -join ';')
                 Set-Content -Path "$logFolder/$transactionID.txt" ($successIDs -join ';')
                 $failedRequests = @()
-                for($i=0;$i -lt $resp.response.CreateUser.Count; $i++){
-                    if(($resp.response.CreateUser[$i]).status -ne 0){
+                if ($resp.response.CreateUser.Count -eq 1){
+                    if($resp.response.CreateUser.status -ne 0){
                         $errorResp = $connector.SendRequest([OARequestType]::Read,@{limit="1";type="Error";method="equal to";queryData=@{code=($resp.response.CreateUser[$i]).status}})
                         $failedRequests += @{
                             First=$params.usersData[$i].firstName;
                             Last=$params.usersData[$i].lastName;
                             "Error code"=($resp.response.CreateUser[$i]).status;
-                            "Error text"=$errorResp.response.Read.Error.text
+                            "Error text"=$errorResp.response.Read.Error.text;
+                            "OuterXml" = $resp.response.CreateUser[$1].OuterXml
+                        }
+                    }
+                }
+                else {
+                    for($i=0;$i -lt $resp.response.CreateUser.Count; $i++){
+                        if(($resp.response.CreateUser[$i]).status -ne 0){
+                            $errorResp = $connector.SendRequest([OARequestType]::Read,@{limit="1";type="Error";method="equal to";queryData=@{code=($resp.response.CreateUser[$i]).status}})
+                            $failedRequests += @{
+                                First=$params.usersData[$i].firstName;
+                                Last=$params.usersData[$i].lastName;
+                                "Error code"=($resp.response.CreateUser[$i]).status;
+                                "Error text"=$errorResp.response.Read.Error.text
+                            }
                         }
                     }
                 }
@@ -407,7 +425,7 @@ do{
             $idsToRemove = ((Get-Content -Path "$logFolder/$transactionID.txt") -split ';')
             Write-Host "IDs to remove: $idsToRemove"
             $resp = $connector.SendRequest([OARequestType]::DeleteUser,@{userIDs=$idsToRemove})
-            $resp.response.OuterXml
+            Set-Content -Path "$logFolder/deletedUsers-$transactionID.txt" "$($resp.response.Delete.Count) user accounts deleted `n`nResponse:`n$($resp.response.OuterXml)"
         }
         8 {
             $dataLeft = $true
