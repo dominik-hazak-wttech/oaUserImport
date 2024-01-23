@@ -235,7 +235,7 @@ do{
                 $resp = $connector.SendRequest([OARequestType]::CreateUserBulk,$params)
                 Write-Host "Saving transaction file"
                 $transactionID = New-Guid
-                $successIDs = ($resp.response.CreateUser | Where-Object {$_.status -eq "0"} | Select-Object -Property id).id
+                $successIDs = ($resp.response.CreateUser.User | Where-Object {$_.status -eq "0"} | Select-Object -Property id).id
                 $createdUserIDs = ($resp.response.CreateUser.User | Select-Object -Property nickname).nickname
                 Set-Content -Path "$logFolder/$transactionID.txt" ($successIDs -join ';')
                 Set-Content -Path "$logFolder/createdUsers-$transactionID.txt" ($createdUserIDs -join ';')
@@ -427,6 +427,7 @@ do{
             $resp = $connector.SendRequest([OARequestType]::DeleteUser,@{userIDs=$idsToRemove})
             Set-Content -Path "$logFolder/deletedUsers-$transactionID.txt" "$($resp.response.Delete.Count) user accounts deleted `n`nResponse:`n$($resp.response.OuterXml)"
         }
+        #additional things for test
         8 {
             $dataLeft = $true
             $i = 0
