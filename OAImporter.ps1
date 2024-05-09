@@ -101,12 +101,13 @@ do{
     }
     Write-Host "7. Revert user creation"
     Write-Host "8. Get all users except admins (and save in UsersToDisable.txt)"
-    Write-Host "9. Activate selected users (from UsersToDisable.txt)"
+    Write-Host "9. Deactivate selected users (from UsersToDisable.txt)"
+    Write-Host "10. Activate selected users (from UsersToDisable.txt)"
     if($bulkData){
-        Write-Host "10. Migrate login to SSO"
+        Write-Host "11. Migrate login to SSO"
     }
     else{
-        Write-Host "10. Migrate login to SSO" -ForegroundColor DarkGray
+        Write-Host "11. Migrate login to SSO" -ForegroundColor DarkGray
     }
     Write-Host "0. Exit"
     $prompt = Read-Host "Your choice [0-7]"
@@ -138,10 +139,13 @@ do{
             . ./Functions/8-GetAllUsersExceptAdmins.ps1
         }
         9 {
-            . ./Functions/9-ActivateSelectedUsers.ps1
+            . ./Functions/9-DeactivateSelectedUsers.ps1
         }
         10 {
-            . ./Functions/10-MigrateLoginToSSO.ps1
+            . ./Functions/10-ActivateSelectedUsers.ps1
+        }
+        11 {
+            . ./Functions/11-MigrateLoginToSSO.ps1
         }
         0 {
             $looping = $false
