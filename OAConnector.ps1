@@ -12,6 +12,11 @@ enum OARequestType{
 
 class OAConnector{
     
+    [hashtable] $authTypes = @{
+        "0" = "Password";
+        "1" = "Token"
+    }
+
     [string] $namespace
     [string] $apiKey
     [hashtable] $OACredentials
@@ -26,14 +31,41 @@ class OAConnector{
             $this.OAApiEndpoint = $apiUrl
         }
 
-        Write-Host "Provide OpenAir credentials"
-        $company = Read-Host -Prompt "Company"
-        $login = Read-Host -Prompt "Login"
-        $password = Read-Host -Prompt "Password" -MaskInput
-        $this.OACredentials = @{"Company" = $company; "User" = $login; "Password" = $password}
+        $authDec = ""
+        do{
+            $authDec = Read-Host "What type of authentication you want to use? (0 - Password, 1 - Token)"
+        }
+        while ($authDec -notin $this.authTypes.Keys)
+        if($this.authTypes[$authDec] -eq "Password"){
+            Write-Host "Provide OpenAir credentials"
+            $company = Read-Host -Prompt "Company"
+            $login = Read-Host -Prompt "Login"
+            $password = Read-Host -Prompt "Password" -MaskInput
+            $this.OACredentials = @{"Company" = $company; "User" = $login; "Password" = $password}
+        }
+        elseif ($this.authTypes[$authDec] -eq "Token"){
+            $accessToken = Read-Host -Prompt "Provide OpenAir access token"
+            $this.OACredentials = @{"access_token" = $accessToken}
+        }
         $this.xmlDocument = $this.GenerateRequestDocument()
     }
     
+    OAConnector([string]$namespace, [string]$apiKey, [string]$apiUrl, [string]$accessToken){
+        $this.namespace = $namespace
+        $this.apiKey = $apiKey
+        if($null -ne $apiUrl){
+            $this.OAApiEndpoint = $apiUrl
+        }
+
+        Write-Host "Provide OpenAir credentials"
+        $newToken = Read-Host -Prompt "Access Token (currently: $($accessToken[0..8])...)"
+        if($newToken){
+            $accessToken = $newToken
+        }
+        $this.OACredentials = @{"access_token" = $accessToken}
+        $this.xmlDocument = $this.GenerateRequestDocument()
+    }
+
     OAConnector([string]$namespace, [string]$apiKey, [string]$apiUrl, [string]$company, [string]$login){
         $this.namespace = $namespace
         $this.apiKey = $apiKey
@@ -72,21 +104,28 @@ class OAConnector{
         return $requestDocument
     }
 
-    [System.Xml.XmlElement] GenerateAuthElement([xml] $xml){        
-        $authCompany = $xml.CreateElement("company")
-        $authCompany.InnerText = $this.OACredentials.Company
-        
-        $authUser = $xml.CreateElement("user")
-        $authUser.InnerText = $this.OACredentials.User
-        
-        $authPass = $xml.CreateElement("password")
-        $authPass.InnerText = $this.OACredentials.Password
-        
+    [System.Xml.XmlElement] GenerateAuthElement([xml] $xml){
         $authLogin = $xml.CreateElement("Login")
-        $authLogin.AppendChild($authCompany)
-        $authLogin.AppendChild($authUser)
-        $authLogin.AppendChild($authPass)
-
+        if($this.OACredentials.access_token){
+            $authToken = $xml.CreateElement("access_token")
+            $authToken.InnerText = $this.OACredentials.access_token
+            $authLogin.AppendChild($authToken)
+        }
+        else{
+            $authCompany = $xml.CreateElement("company")
+            $authCompany.InnerText = $this.OACredentials.Company
+            
+            $authUser = $xml.CreateElement("user")
+            $authUser.InnerText = $this.OACredentials.User
+            
+            $authPass = $xml.CreateElement("password")
+            $authPass.InnerText = $this.OACredentials.Password
+            
+            $authLogin.AppendChild($authCompany)
+            $authLogin.AppendChild($authUser)
+            $authLogin.AppendChild($authPass)
+        }
+        
         $auth = $xml.CreateElement("Auth")
         $auth.AppendChild($authLogin)
 
