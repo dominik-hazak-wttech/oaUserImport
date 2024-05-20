@@ -105,12 +105,14 @@ do{
     Write-Host "10. Activate selected users (from UsersToDisable.txt)"
     if($bulkData){
         Write-Host "11. Migrate login to SSO"
+        Write-Host "12. Import clients (bulk from data)"
     }
     else{
         Write-Host "11. Migrate login to SSO" -ForegroundColor DarkGray
+        Write-Host "12. Import clients (bulk from data)" -ForegroundColor DarkGray
     }
     Write-Host "0. Exit"
-    $prompt = Read-Host "Your choice [0-7]"
+    $prompt = Read-Host "Your choice [0-12]"
 
     switch($prompt){
         1 {
@@ -146,6 +148,9 @@ do{
         }
         11 {
             . ./Functions/11-MigrateLoginToSSO.ps1
+        }
+        12 {
+            . ./Functions/12-ImportClientsBulkInOpenAir.ps1
         }
         0 {
             $looping = $false

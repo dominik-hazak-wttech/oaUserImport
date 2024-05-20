@@ -12,7 +12,7 @@ if($decision.ToLower() -ne "yes"){
 }
 
 Write-Host "Reading user info"
-
+$importList = @()
 foreach($row in $dataToProcess){
     $userObj = @{}
     $userObj.id = $row.id

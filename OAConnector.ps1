@@ -8,6 +8,7 @@ enum OARequestType{
     DeleteUser
     Modify
     ModifyBulk
+    AddBulk
 }
 
 class OAConnector{
@@ -260,6 +261,24 @@ class OAConnector{
         return $modifyElement
     }
 
+    [System.Xml.XmlElement] GenerateAddElement([xml]$xml, [string]$type, [hashtable]$dataToAdd){
+        $typeElement = $xml.CreateElement($type)
+
+        foreach($key in $dataToAdd.Keys){
+            $attrElement = $xml.CreateElement($key)
+            if($dataToAdd.$key){
+                $attrElement.InnerText = $dataToAdd.$key
+            }
+            $typeElement.AppendChild($attrElement)
+        }
+
+        $modifyElement = $xml.CreateElement("Add")
+        $modifyElement.SetAttribute("type",$type)
+        $modifyElement.SetAttribute("enable_custom","1")
+        $modifyElement.AppendChild($typeElement)
+        return $modifyElement
+    }
+
     [xml] GenerateReadRequest([string]$type, [string]$method, [hashtable]$queryData, [boolean]$customFields, [int]$limit){
         $request = $this.xmlDocument.Clone()
         $authElement = $this.GenerateAuthElement($request)
@@ -358,6 +377,17 @@ class OAConnector{
         }
         return $request
     }
+    
+    [xml] GenerateAddBulkRequest([array]$addRequests){
+        $request = $this.xmlDocument.Clone()
+        $authElement = $this.GenerateAuthElement($request)
+        $request.DocumentElement.AppendChild($authElement)
+        foreach($addRequest in $addRequests){
+            $addElement = $this.GenerateAddElement($request, $addRequest.type, $addRequest.dataToAdd)
+            $request.DocumentElement.AppendChild($addElement)
+        }
+        return $request
+    }
 
     [xml] SendRequest([OARequestType] $type, [hashtable]$params){
         $request = $null
@@ -399,6 +429,11 @@ class OAConnector{
             }
             ModifyBulk {
                 $request = $this.GenerateModifyBulkRequest($params.modifyRequests)
+            }
+            AddBulk {
+                Write-Host $params.addRequests | Out-String
+                $request = $this.GenerateAddBulkRequest($params.addRequests)
+                Write-Host $request.OuterXML
             }
             default {
                 $request = $this.xmlDocument.Clone()
