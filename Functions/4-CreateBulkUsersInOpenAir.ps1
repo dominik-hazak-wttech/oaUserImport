@@ -2,8 +2,12 @@ if(-not $bulkData){
     Write-Host "You need to load data first" -ForegroundColor Red
     break
 }
+
+$OAStatusReady = "READY FOR IMPORT"
+$OACleaningStatusValidate = "NEEDS VALIDATION"
+
 $dataToProcess = $bulkData
-$dataToProcess = $dataToProcess | Where-Object {$_."OA Import Status" -eq "READY FOR IMPORT"}
+$dataToProcess = $dataToProcess | Where-Object {$_."OA Import Status" -eq $OAStatusReady}
 $decision = Read-Host "You're about to create $($dataToProcess.Count) accounts. Are you sure? (type yes)"
 if($decision.ToLower() -ne "yes"){
     Write-Host "User account creation aborted"
@@ -11,6 +15,27 @@ if($decision.ToLower() -ne "yes"){
 }
 $importList = @()
 foreach($row in $dataToProcess){
+    if ($row."OA Import Status" -eq $OAStatusReady -and $row."T_Data Cleaning Status" -eq $OACleaningStatusValidate){
+        Write-Error "$($row.Email) is marked as ready but needs validation!"
+        $failState = $true
+    }
+    if (
+        $row."First Name" -eq "" -or 
+        $null -eq $row."First Name" -or
+        $row."Last Name" -eq "" -or 
+        $null -eq $row."Last Name"
+       ){
+        Write-Error "$($row.Email) is missing First or Last name!"
+        $failState = $true
+    }
+    if ($row.Email -eq "" -or $null -eq $row.Email){
+        Write-Error "$($row."First Name") $($row."Last Name") is missing email value!"
+        $failState = $true
+    }
+    if ($row."User ID" -eq "" -or $null -eq $row."User ID"){
+        Write-Error "$($row.Email) is missing User ID value!"
+        $failState = $true
+    }
     $userObj = @{}
     $userObj.firstName = $row."First Name"
     $userObj.lastName = $row."Last Name"
@@ -32,9 +57,16 @@ foreach($row in $dataToProcess){
     $userObj.parameters.VaultCode__c = $row.VaultCode
     $userObj.parameters.active = ($row."Is Active" -eq "Active") ? 1 : 0
     $userObj.parameters.rate = $row.Cost
-    $userObj.parameters.password = $row.Password
+    $userObj.parameters.password = "ThisIsVerySecureSecretPassword1@3$"
+    $userObj.parameters.saml_auth__c = 1
     $importList += $userObj
 }
+
+if($failState){
+    Write-Error "Cannot progress with update due to errors above"
+    break
+}
+
 $counter = [pscustomobject] @{ Value = 0 }
 $groupSize = 999
 $groups = $importList | Group-Object -Property { [math]::Floor($counter.Value++ / $groupSize) }
@@ -42,12 +74,16 @@ if($groupSize -lt $importList.Count){
     Write-Host "List of users exceeds API limit for one request. Users are divided to $($groups.Count) groups"
 }
 foreach($group in $groups){
+    if($validateOnly){
+        Write-Host "Would send request to create group of $($group.Group.Count) accounts"
+        continue
+    }
     $params = @{}
     $params.usersData = $group.Group
     $resp = $connector.SendRequest([OARequestType]::CreateUserBulk,$params)
     Write-Host "Saving transaction file"
     $transactionID = New-Guid
-    $successIDs = ($resp.response.CreateUser.User | Where-Object {$_.status -eq "0"} | Select-Object -Property id).id
+    $successIDs = (($resp.response.CreateUser | Where-Object {$_.status -eq "0"}).User | Select-Object -Property id).id
     $createdUserIDs = ($resp.response.CreateUser.User | Select-Object -Property nickname).nickname
     Set-Content -Path "$logFolder/$transactionID.txt" ($successIDs -join ';')
     Set-Content -Path "$logFolder/createdUsers-$transactionID.txt" ($createdUserIDs -join ';')

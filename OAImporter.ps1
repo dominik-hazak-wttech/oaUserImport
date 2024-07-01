@@ -106,13 +106,21 @@ do{
     if($bulkData){
         Write-Host "11. Migrate login to SSO"
         Write-Host "12. Import clients (bulk from data)"
+        Write-Host "13. Modify users (bulk from data)"
+        Write-Host "14. Pre-GoLive import (bulk from data)"
+        Write-Host "15. Pre-GoLive groups update (bulk from data)"
+        Write-Host "16. Pre-GoLive cost update (bulk from data)"
     }
     else{
         Write-Host "11. Migrate login to SSO" -ForegroundColor DarkGray
         Write-Host "12. Import clients (bulk from data)" -ForegroundColor DarkGray
+        Write-Host "13. Modify users (bulk from data)" -ForegroundColor DarkGray
+        Write-Host "14. Pre-GoLive import (bulk from data)" -ForegroundColor DarkGray
+        Write-Host "15. Pre-GoLive groups update (bulk from data)" -ForegroundColor DarkGray
+        Write-Host "16. Pre-GoLive cost update (bulk from data)" -ForegroundColor DarkGray
     }
     Write-Host "0. Exit"
-    $prompt = Read-Host "Your choice [0-12]"
+    $prompt = Read-Host "Your choice [0-16]"
 
     switch($prompt){
         1 {
@@ -125,6 +133,11 @@ do{
             . ./Functions/3-CreateSingleUserInOpenAir.ps1
         }
         4 {
+            $validatePrompt = Read-Host "If you don't want to validate only, type: yes"
+            $validateOnly = $false
+            if($validatePrompt.ToLower() -ne "yes"){
+                $validateOnly = $true
+            }
             . ./Functions/4-CreateBulkUsersInOpenAir.ps1
         }
         5 {
@@ -151,6 +164,18 @@ do{
         }
         12 {
             . ./Functions/12-ImportClientsBulkInOpenAir.ps1
+        }
+        13 {
+            . ./Functions/13-ModifyUsersBulk.ps1
+        }
+        14 {
+            . ./Functions/14-UserImportPreGoLive.ps1
+        }
+        15 {
+            . ./Functions/15-GroupUpdate.ps1
+        }
+        16 {
+            . ./Functions/16-CostUpdate.ps1
         }
         0 {
             $looping = $false

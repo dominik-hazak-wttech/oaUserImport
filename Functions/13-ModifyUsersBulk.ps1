@@ -4,7 +4,7 @@ if(-not $bulkData){
 }
 
 $dataToProcess = $bulkData
-$dataToProcess = $dataToProcess | Where-Object {$_.active -eq "1"}
+# $dataToProcess = $dataToProcess | Where-Object {$_."OA Import Status" -eq "READY FOR IMPORT" -and $_."User in OA?" -eq "MATCH"}
 $decision = Read-Host "You're about to modify $($dataToProcess.Count) accounts. Are you sure? (type yes)"
 if($decision.ToLower() -ne "yes"){
     Write-Host "User account creation aborted"
@@ -14,20 +14,11 @@ if($decision.ToLower() -ne "yes"){
 Write-Host "Reading user info"
 $importList = @()
 foreach($row in $dataToProcess){
-    if($row.emailMigrated -notmatch "@vml.com"){
-        Write-Warning "User $($row.nickname) doesn't have vml email but is active!"
-        continue
-    }
-    if($row.nickname -match "@vml.com"){
-        Write-Output "User $($row.nickname) already is migrated to vml email, skipping"
-        continue
-    }
     $userObj = @{}
     $userObj.id = $row.id
     $userObj.type = "User"
     $userObj.dataToUpdate = @{}
-    $userObj.dataToUpdate.nickname = $row.emailMigrated
-    $userObj.dataToUpdate.userEmail = $row.emailMigrated
+    $userObj.dataToUpdate.Company__c = $row.custom_55
     $importList += $userObj
 }
 

@@ -1,5 +1,6 @@
 enum OARequestType{
     Read
+    ReadBulk
     CreateUser
     CreateUserBulk
     Whoami
@@ -9,6 +10,7 @@ enum OARequestType{
     Modify
     ModifyBulk
     AddBulk
+    CostUpdate
 }
 
 class OAConnector{
@@ -140,7 +142,7 @@ class OAConnector{
             $queryElement.InnerText = $queryData.$key
             $typeElement.AppendChild($queryElement)
         }
-        Write-Host "Emable custom current value: $customFields"
+        Write-Verbose "Emable custom current value: $customFields"
         $readElement = $xml.CreateElement("Read")
         $readElement.SetAttribute("type","$type")
         $readElement.SetAttribute("method","$method")
@@ -178,6 +180,7 @@ class OAConnector{
         if(-not $parameters.Keys -contains "VaultCode__c"){ Write-Host -ForegroundColor Red "Parameters are missing VaultCode__c!";return $null }
         if(-not $parameters.Keys -contains "active"){ Write-Host -ForegroundColor Red "Parameters are missing active!";return $null }
         if(-not $parameters.Keys -contains "rate"){ Write-Host -ForegroundColor Red "Parameters are missing rate!";return $null }
+        if(-not $parameters.Keys -contains "saml_auth__c"){ Write-Host -ForegroundColor Red "Parameters are missing saml_auth__c!";return $null }
 
         $createUserElement = $xml.CreateElement("CreateUser")
         $createUserElement.SetAttribute("enable_custom","1")
@@ -248,7 +251,72 @@ class OAConnector{
         $typeElement = $xml.CreateElement($type)
         $typeElement.AppendChild($idElement)
 
+        if($dataToUpdate.userEmail -or $dataToUpdate.firstName -or $dataToUpdate.lastName){
+            $addressElement = $xml.CreateElement("Address")
+            if($dataToUpdate.userEmail){
+                $emailElement = $xml.CreateElement("email")
+                $emailElement.InnerText = $dataToUpdate.userEmail
+                $addressElement.AppendChild($emailElement)
+            }
+            if($dataToUpdate.firstName){
+                $firstNameElement = $xml.CreateElement("first")
+                $firstNameElement.InnerText = $dataToUpdate.firstName
+                $addressElement.AppendChild($firstNameElement)
+            }
+            if($dataToUpdate.lastName){
+                $lastNameElement = $xml.CreateElement("last")
+                $lastNameElement.InnerText = $dataToUpdate.lastName
+                $addressElement.AppendChild($lastNameElement)
+            }
+            $addrElement = $xml.CreateElement("addr")
+            $addrElement.AppendChild($addressElement)
+            $typeElement.AppendChild($addrElement)
+        }
+
+        if($dataToUpdate.end){
+            $endElement = $xml.CreateElement("end")
+            $dateElement = $xml.CreateElement("Date")
+            
+            $yearElement = $xml.CreateElement("year")
+            $yearElement.InnerText = $dataToUpdate.end.year
+            $dateElement.AppendChild($yearElement)
+
+            $monthElement = $xml.CreateElement("month")
+            $monthElement.InnerText = $dataToUpdate.end.month
+            $dateElement.AppendChild($monthElement)
+
+            $dayElement = $xml.CreateElement("day")
+            $dayElement.InnerText = $dataToUpdate.end.day
+            $dateElement.AppendChild($dayElement)
+
+            $endElement.AppendChild($dateElement)
+            $typeElement.AppendChild($endElement)
+        }
+
+        if($dataToUpdate.start){
+            $startElement = $xml.CreateElement("start")
+            $dateElement = $xml.CreateElement("Date")
+            
+            $yearElement = $xml.CreateElement("year")
+            $yearElement.InnerText = $dataToUpdate.start.year
+            $dateElement.AppendChild($yearElement)
+
+            $monthElement = $xml.CreateElement("month")
+            $monthElement.InnerText = $dataToUpdate.start.month
+            $dateElement.AppendChild($monthElement)
+
+            $dayElement = $xml.CreateElement("day")
+            $dayElement.InnerText = $dataToUpdate.start.day
+            $dateElement.AppendChild($dayElement)
+
+            $startElement.AppendChild($dateElement)
+            $typeElement.AppendChild($startElement)
+        }
+
         foreach($key in $dataToUpdate.Keys){
+            if($key -eq "userEmail" -or $key -eq "firstName" -or $key -eq "lastName" -or $key -eq "end" -or $key -eq "start"){
+                continue
+            }
             $attrElement = $xml.CreateElement($key)
             $attrElement.InnerText = $dataToUpdate.$key
             $typeElement.AppendChild($attrElement)
@@ -298,6 +366,21 @@ class OAConnector{
 
     [xml] GenerateReadRequest([string]$type, [string]$method, [hashtable]$queryData, [boolean]$customFields){
         return $this.GenerateReadRequest($type, $method, $queryData, $customFields, 10)
+    }
+
+    [xml] GenerateReadBulkRequest([array]$objectsData){
+        if ($objectsData.Count -ge 1000){
+            Write-Host -ForegroundColor Red "Amount of data exceeds limit of 1000 users to be created in one request!"
+            throw "Amount of data exceeds limit of 1000 users to be created in one request!"
+        }
+        $request = $this.xmlDocument.Clone()
+        $authElement = $this.GenerateAuthElement($request)
+        $request.DocumentElement.AppendChild($authElement)
+        foreach($object in $objectsData){
+            $readElement = $this.GenerateReadElement($request, $object.type, $object.method, $object.queryData, $object.customFields ? $object.customFields : $false, $object.limit ? $object.limit : 10)
+            $request.DocumentElement.AppendChild($readElement)
+        }
+        return $request
     }
 
     [xml] GenerateTimeRequest(){
@@ -389,7 +472,20 @@ class OAConnector{
         return $request
     }
 
-    [xml] SendRequest([OARequestType] $type, [hashtable]$params){
+    [xml] GenerateCostUpdateRequest([hashtable]$costObjects){
+        $request = $this.xmlDocument.Clone()
+        $authElement = $this.GenerateAuthElement($request)
+        $request.DocumentElement.AppendChild($authElement)
+        if($costObjects.Update){
+            $modifyElement = $this.GenerateModifyElement($request, "LoadedCost",$costObjects.Update.id,$costObjects.Update.dataToUpdate)
+            $request.DocumentElement.AppendChild($modifyElement)
+        }
+        $addElement = $this.GenerateAddElement($request, "LoadedCost",$costObjects.Add.dataToAdd)
+        $request.DocumentElement.AppendChild($addElement)
+        return $request
+    }
+
+    [xml] SendRequest([OARequestType] $type, [hashtable]$params, [bool]$dryRun){
         $request = $null
         switch($type){
             Time {
@@ -408,6 +504,9 @@ class OAConnector{
                 else {
                     $request = $this.GenerateReadRequest($params.type, $params.method, $params.queryData)
                 }
+            }
+            ReadBulk {
+                $request = $this.GenerateReadBulkRequest($params.readData)
             }
             Whoami {
                 $request = $this.GenerateWhoamiRequest()
@@ -435,11 +534,17 @@ class OAConnector{
                 $request = $this.GenerateAddBulkRequest($params.addRequests)
                 Write-Host $request.OuterXML
             }
+            CostUpdate {
+                $request = $this.GenerateCostUpdateRequest($params.costObjects)
+            }
             default {
                 $request = $this.xmlDocument.Clone()
             }
         }
         try{
+            if($dryRun){
+                return $request.OuterXml
+            }
             $response = Invoke-WebRequest $this.OAApiEndpoint -Method POST -Body $request.OuterXml -Headers @{"Content-Type"="application/xml"}
             return [xml]$response.Content
         }
@@ -450,6 +555,11 @@ class OAConnector{
     }
 
     [xml] SendRequest([OARequestType] $type){
-        return $this.SendRequest($type, @{})
+        return $this.SendRequest($type, @{}, $false)
     }
+
+    [xml] SendRequest([OARequestType] $type, [hashtable]$params){
+        return $this.SendRequest($type,$params,$false)
+    }
+
 }
