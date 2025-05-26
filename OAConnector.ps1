@@ -137,10 +137,32 @@ class OAConnector{
     
     [System.Xml.XmlElement] GenerateReadElement([xml] $xml, [string]$type, [string]$method, [hashtable]$queryData, [boolean]$customFields, [int]$limit){
         $typeElement = $xml.CreateElement($type)
+        $addrElement = $null
+        $addressElement = $null
+        if ($queryData.Keys -contains "first" -or $queryData.Keys -contains "last"){
+            $addrElement = $xml.CreateElement("addr")
+            $addressElement = $xml.CreateElement("Address")
+        }
         foreach ($key in $queryData.Keys){
+            if($key -eq "first"){
+                $firstElement = $xml.CreateElement("first")
+                $firstElement.InnerText = $queryData.$key
+                $addressElement.AppendChild($firstElement)
+                continue
+            }
+            if($key -eq "last"){
+                $lastElement = $xml.CreateElement("last")
+                $lastElement.InnerText = $queryData.$key
+                $addressElement.AppendChild($lastElement)
+                continue
+            }
             $queryElement = $xml.CreateElement($key)
             $queryElement.InnerText = $queryData.$key
             $typeElement.AppendChild($queryElement)
+        }
+        if($addressElement){
+            $addrElement.AppendChild($addressElement)
+            $typeElement.AppendChild($addrElement)
         }
         Write-Verbose "Emable custom current value: $customFields"
         $readElement = $xml.CreateElement("Read")
@@ -229,6 +251,19 @@ class OAConnector{
         
         $createUserElement.AppendChild($userElement)
         return $createUserElement
+    }
+
+    [System.Xml.XmlElement] GenerateDeleteElement([xml]$xml, [string]$type, [string]$id){
+        $idElement = $xml.CreateElement("id")
+        $idElement.InnerText = $id
+
+        $userElement = $xml.CreateElement($type)
+        $userElement.AppendChild($idElement)
+
+        $deleteElement = $xml.CreateElement("Delete")
+        $deleteElement.SetAttribute("type",$type)
+        $deleteElement.AppendChild($userElement)
+        return $deleteElement
     }
 
     [System.Xml.XmlElement] GenerateDeleteUserElement([xml]$xml, [string]$id){

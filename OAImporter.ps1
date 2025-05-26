@@ -1,4 +1,4 @@
-Import-Module PSExcel
+Import-Module ImportExcel
 . ./OAConnector.ps1
 
 $logFolder = "./logs"
@@ -176,6 +176,9 @@ do{
         }
         16 {
             . ./Functions/16-CostUpdate.ps1
+        }
+        24 {
+            . ./Functions/24-CAKEImport.ps1
         }
         0 {
             $looping = $false

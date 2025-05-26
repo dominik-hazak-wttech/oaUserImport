@@ -5,16 +5,16 @@ switch($type.ToLower()){
         $sheet = Read-Host "Please provide Sheet name (with no name default sheet will be selected)"
         $rowNum = Read-Host "Please starting row number (by default first row will be chosen)"
         if ($sheet -and $rowNum){
-            $bulkData = Import-XLSX -Path $path -Sheet $sheet -RowStart $rowNum
+            $bulkData = Import-Excel -Path $path -Sheet $sheet -RowStart $rowNum
         }
         elseif ($rowNum){
-            $bulkData = Import-XLSX -Path $path -RowStart $rowNum
+            $bulkData = Import-Excel -Path $path -RowStart $rowNum
         }
         elseif ($sheet){
-            $bulkData = Import-XLSX -Path $path -Sheet $sheet
+            $bulkData = Import-Excel -Path $path -Sheet $sheet
         }
         else{
-            $bulkData = Import-XLSX -Path $path
+            $bulkData = Import-Excel -Path $path
         }
     }
     csv {
