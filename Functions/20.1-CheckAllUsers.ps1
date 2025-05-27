@@ -92,8 +92,8 @@ foreach($group in $groups){
     Write-Host "Transaction ID: $transactionID"
     $successIDs = (($resp.response.Read | Where-Object {$_.status -eq "0"}).User | Select-Object -Property id).id
     $readUsers = ($resp.response.Read.User | Select-Object -Property name).name
-    Set-Content -Path "$logFolder/$transactionID.txt" ($successIDs -join ';')
-    Set-Content -Path "$logFolder/users-$transactionID.txt" ($readUsers -join ';')
+    Set-Content -Path "$logFolder/$transactionID.json" ($successIDs | ConvertTo-Json)
+    Set-Content -Path "$logFolder/users-$transactionID.json" ($readUsers | ConvertTo-Json)
     Write-Host "Reading errors if any"
     $failedRequests = [System.Collections.ArrayList]@()
     if ($resp.response.Read.Count -eq 1){
@@ -131,7 +131,7 @@ foreach($group in $groups){
             }
         }
     }
-    Set-Content -Path "$logFolder/error-$transactionID.txt" ($failedRequests | Format-Table | Out-String)
+    Set-Content -Path "$logFolder/error-$transactionID.json" ($failedRequests | ConvertTo-Json | Out-String)
     Write-Host "Out of $($params.readData.Count):`n`t$($successIDs.Count) were read successfully`n`t$($failedRequests.Count) failed"
     Set-Content -Path "$logFolder/response-$transactionID.xml" $resp.response.OuterXml
 }

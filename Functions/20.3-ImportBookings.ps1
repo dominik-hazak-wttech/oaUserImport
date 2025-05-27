@@ -134,6 +134,7 @@ foreach($row in $dataToProcess){
         if($importToSandbox){
             Write-Warning "User $($row."Resource") was not fund in OA. Booking will be skipped."
             $skipped++
+            continue
         }
         else{
             Write-Error "User $($row."Resource") was not fund in OA."
@@ -145,6 +146,7 @@ foreach($row in $dataToProcess){
         if($importToSandbox){
             Write-Warning "Requester $($row."Requester") was not fund in OA. Booking will be skipped."
             $skipped++
+            continue
         }
         else{
             Write-Error "Requester $($row."Requester") was not fund in OA."
@@ -155,6 +157,11 @@ foreach($row in $dataToProcess){
         Write-Error "Project $($row."Project") was not fund in OA."
         $failState = $true
     }
+
+    if($percentage -ge 0 -and $percentage -le 1){
+        $percentage = $percentage * 100
+    }
+
     $bookingObj = @{}
     $bookingObj.type = "Booking"
     $bookingObj.dataToAdd = @{}
@@ -202,11 +209,11 @@ foreach($group in $groups){
     $transactionID = New-Guid
     Write-Host "Transaction ID: $transactionID"
     $successIDs = (($resp.response.Add | Where-Object {$_.status -eq "0"}).Booking | Select-Object -Property id).id
-    Set-Content -Path "$logFolder/$transactionID.txt" ($successIDs -join ';')
+    Set-Content -Path "$logFolder/$transactionID.json" ($successIDs | ConvertTo-Json)
     $failedRequests = [System.Collections.ArrayList]@()
     if ($resp.response.Add.Count -eq 1){
         if($resp.response.Add.status -ne 0){
-            $errorResp = $connector.SendRequest([OARequestType]::Read,@{limit="1";type="Error";method="equal to";queryData=@{code=($resp.response.Modify[$i]).status}})
+            $errorResp = $connector.SendRequest([OARequestType]::Read,@{limit="1";type="Error";method="equal to";queryData=@{code=($resp.response.Add[$i]).status}})
             $errorInfo = @{
                 "ResourceID"=$params.addRequests.dataToAdd.userid;
                 "OwnerID"=$params.addRequests.dataToAdd.ownerid;
@@ -220,8 +227,8 @@ foreach($group in $groups){
     }
     else{
         for($i=0;$i -lt $resp.response.Add.Count; $i++){
-            if(($resp.response.Modify[$i]).status -ne 0){
-                $errorResp = $connector.SendRequest([OARequestType]::Read,@{limit="1";type="Error";method="equal to";queryData=@{code=($resp.response.Modify[$i]).status}})
+            if(($resp.response.Add[$i]).status -ne 0){
+                $errorResp = $connector.SendRequest([OARequestType]::Read,@{limit="1";type="Error";method="equal to";queryData=@{code=($resp.response.Add[$i]).status}})
                 $errorInfo = @{
                     "ResourceID"=$params.addRequests[$i].dataToAdd.userid;
                     "OwnerID"=$params.addRequests[$i].dataToAdd.ownerid;
@@ -234,7 +241,7 @@ foreach($group in $groups){
             }
         }
     }
-    Set-Content -Path "$logFolder/error-$transactionID.txt" ($failedRequests | Format-List | Out-String)
+    Set-Content -Path "$logFolder/error-$transactionID.json" ($failedRequests | ConvertTo-Json | Out-String)
     Write-Host "Out of $($params.addRequests.Count):`n`t$($successIDs.Count) were created successfully`n`t$($failedRequests.Count) failed"
     Set-Content -Path "$logFolder/response-$transactionID.xml" $resp.response.OuterXml
 }
