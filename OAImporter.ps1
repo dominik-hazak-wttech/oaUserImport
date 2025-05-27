@@ -110,6 +110,7 @@ do{
         Write-Host "14. Pre-GoLive import (bulk from data)"
         Write-Host "15. Pre-GoLive groups update (bulk from data)"
         Write-Host "16. Pre-GoLive cost update (bulk from data)"
+        Write-Host "20. Import Bookings (bulk from data)"
     }
     else{
         Write-Host "11. Migrate login to SSO" -ForegroundColor DarkGray
@@ -118,9 +119,10 @@ do{
         Write-Host "14. Pre-GoLive import (bulk from data)" -ForegroundColor DarkGray
         Write-Host "15. Pre-GoLive groups update (bulk from data)" -ForegroundColor DarkGray
         Write-Host "16. Pre-GoLive cost update (bulk from data)" -ForegroundColor DarkGray
+        Write-Host "20. Import Bookings (bulk from data)" -ForegroundColor DarkGray
     }
     Write-Host "0. Exit"
-    $prompt = Read-Host "Your choice [0-16]"
+    $prompt = Read-Host "Your choice [0-20]"
 
     switch($prompt){
         1 {
@@ -176,6 +178,9 @@ do{
         }
         16 {
             . ./Functions/16-CostUpdate.ps1
+        }
+        20 {
+            . ./Functions/20-BookingImport.ps1
         }
         24 {
             . ./Functions/24-CAKEImport.ps1
