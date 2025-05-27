@@ -4,14 +4,15 @@ if(-not $bulkData){
 }
 
 $dataToProcess = $bulkData
-$decision = Read-Host "You're about to check $($dataToProcess.Count) Projects. Are you sure? (type yes)"
-if($decision.ToLower() -ne "yes"){
-    Write-Host "Project check aborted"
-    break
-}
-
 $projectList = $dataToProcess."Project" | Select-Object -Unique
 
+# $decision = Read-Host "You're about to check $($projectList.Count) Projects. Are you sure? (type yes)"
+# if($decision.ToLower() -ne "yes"){
+#     Write-Host "Project check aborted"
+#     break
+# }
+
+$skipped=0
 $checkList = @()
 $failState = $false
 foreach($row in $projectList){
@@ -27,6 +28,7 @@ foreach($row in $projectList){
     
     if($row -eq "0" -or $row.getType() -eq [OfficeOpenXml.ExcelErrorValue] -or -not $row){
         Write-Warning "Project with name $($row) is skipped"
+        $skipped++
         continue
     }
     
@@ -42,7 +44,6 @@ foreach($row in $projectList){
     $projectRead.method = "equal to"
     $projectRead.queryData = @{}
     $projectRead.queryData.name = $name
-    $projectRead.queryData.active = "1"
     $checkList += $projectRead
 }
 
@@ -57,6 +58,11 @@ $groups = $checkList | Group-Object -Property { [math]::Floor($counter.Value++ /
 if($groupSize -lt $checkList.Count){
     Write-Host "List of users exceeds API limit for one request. Reads are divided to $($groups.Count) groups"
 }
+
+if($skipped -gt 0){
+    Write-Host "$skipped entries were skipped"
+}
+
 foreach($group in $groups){
     $params = @{}
     $params.readData = $group.Group
@@ -69,39 +75,39 @@ foreach($group in $groups){
     $checkedProjects = $resp.response.Read.Project
     Write-Host "Saving transaction file"
     $transactionID = New-Guid
+    Write-Host "Transaction ID: $transactionID"
     $successIDs = (($resp.response.Read | Where-Object {$_.status -eq "0"}).Project | Select-Object -Property id).id
     $readProjects = ($resp.response.Read.Project | Select-Object -Property name).name
     Set-Content -Path "$logFolder/$transactionID.txt" ($successIDs -join ';')
     Set-Content -Path "$logFolder/projects-$transactionID.txt" ($readProjects -join ';')
     $failedRequests = [System.Collections.ArrayList]@()
-    if ($resp.response.Add.Count -eq 1){
-        if($resp.response.Add.status -ne 0){
-            $errorResp = $connector.SendRequest([OARequestType]::Read,@{limit="1";type="Error";method="equal to";queryData=@{code=($resp.response.Add[0]).status}})
+    if ($resp.response.Read.Count -eq 1){
+        if($resp.response.Read.status -ne 0){
+            $errorResp = $connector.SendRequest([OARequestType]::Read,@{limit="1";type="Error";method="equal to";queryData=@{code=($resp.response.Read[0]).status}})
             $errorInfo = @{
-                "Name"=$params.addRequests.name;
-                "Error code"=$resp.response.Add.status;
-                "Error text"=$errorResp.response.Read.Error.text;
-                "OuterXml" = $resp.response.Add.OuterXml
+                "Name"=$params.readData.queryData.name;
+                "Error code"=$resp.response.Read.status;
+                "Error text"=$errorResp.response.Read.Error.comment;
+                "OuterXml" = $resp.response.Read.OuterXml
             }
-            $failedRequests.Add($errorInfo)
+            $failedRequests.Add($errorInfo) | Out-Null
         }
     }
     else{
-        for($i=0;$i -lt $resp.response.Add.Count; $i++){
-            if(($resp.response.Add[$i]).status -ne 0){
-                $errorResp = $connector.SendRequest([OARequestType]::Read,@{limit="1";type="Error";method="equal to";queryData=@{code=($resp.response.Add[$i]).status}})
+        for($i=0;$i -lt $resp.response.Read.Count; $i++){
+            if(($resp.response.Read[$i]).status -ne 0){
+                $errorResp = $connector.SendRequest([OARequestType]::Read,@{limit="1";type="Error";method="equal to";queryData=@{code=($resp.response.Read[$i]).status}})
                 $errorInfo = @{
-                    Name=$params.addRequests[$i].name;
-                    "Error code"=($resp.response.Add[$i]).status;
-                    "Error text"=$errorResp.response.Read.Error.text;
-                    "OuterXml" = $resp.response.Add[$1].OuterXml
+                    "Name"=$params.readData[$i].queryData.name;
+                    "Error code"=($resp.response.Read[$i]).status;
+                    "Error text"=$errorResp.response.Read.Error.comment;
+                    "OuterXml" = $resp.response.Read[$i].OuterXml
                 }
-                $failedRequests.Add($errorInfo)
+                $failedRequests.Add($errorInfo) | Out-Null
             }
         }
     }
-    Set-Content -Path "$logFolder/error-$transactionID.txt" ($failedRequests | Format-List | Out-String)
-    Write-Host "Out of $($params.addRequests.Count):`n`t$($successIDs.Count) were created successfully`n`t$($failedRequests.Count) failed"
-    Write-Host "Transaction ID: $transactionID"
+    Set-Content -Path "$logFolder/error-$transactionID.txt" ($failedRequests | Format-Table | Out-String)
+    Write-Host "Out of $($params.readData.Count):`n`t$($successIDs.Count) were read successfully`n`t$($failedRequests.Count) failed"
     Set-Content -Path "$logFolder/response-$transactionID.xml" $resp.response.OuterXml
 }

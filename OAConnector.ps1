@@ -369,7 +369,26 @@ class OAConnector{
 
         foreach($key in $dataToAdd.Keys){
             $attrElement = $xml.CreateElement($key)
-            if($dataToAdd.$key){
+            
+            if($key -eq "startdate" -or $key -eq "enddate"){
+                $dateElement = $xml.CreateElement("Date")
+                
+                $monthElement = $xml.CreateElement("month")
+                $monthElement.InnerText = $dataToAdd.$key.month
+                
+                $dayElement = $xml.CreateElement("day")
+                $dayElement.InnerText = $dataToAdd.$key.day
+                
+                $yearElement = $xml.CreateElement("year")
+                $yearElement.InnerText = $dataToAdd.$key.year
+                
+                $dateElement.AppendChild($monthElement)
+                $dateElement.AppendChild($dayElement)
+                $dateElement.AppendChild($yearElement)
+                
+                $attrElement.AppendChild($dateElement)
+            }
+            elseif($dataToAdd.$key){
                 $attrElement.InnerText = $dataToAdd.$key
             }
             $typeElement.AppendChild($attrElement)
@@ -565,9 +584,7 @@ class OAConnector{
                 $request = $this.GenerateModifyBulkRequest($params.modifyRequests)
             }
             AddBulk {
-                Write-Host $params.addRequests | Out-String
                 $request = $this.GenerateAddBulkRequest($params.addRequests)
-                Write-Host $request.OuterXML
             }
             CostUpdate {
                 $request = $this.GenerateCostUpdateRequest($params.costObjects)
