@@ -4,7 +4,7 @@ if(-not $bulkData){
 }
 
 $dataToProcess = $bulkData
-$userList = (@($dataToProcess."Resource") + @($dataToProcess."Requester") + @($dataToProcess."Resource Manager")) | Select-Object -Unique
+$userList = (@($dataToProcess."Resource") + @($dataToProcess."Requester")) | Select-Object -Unique
 
 # $decision = Read-Host "You're about to check $($userList.Count) Users. Are you sure? (type yes)"
 # if($decision.ToLower() -ne "yes"){
@@ -26,7 +26,7 @@ foreach($row in $userList){
         Remove-Variable last
     }
     
-    if($row -eq "0" -or $row.getType() -eq [OfficeOpenXml.ExcelErrorValue] -or -not $row){
+    if($row -eq "0" -or $row.getType() -eq [OfficeOpenXml.ExcelErrorValue] -or -not $row -or $row -eq "?"){
         Write-Warning "User with name $($row) is skipped"
         $skipped++
         continue
@@ -49,6 +49,7 @@ foreach($row in $userList){
     $userRead = @{}
     $userRead.type = "User"
     $userRead.method = "equal to"
+    $userRead.customFields = $true
     $userRead.queryData = @{}
     if($first -and $last){
         $userRead.queryData.first = $first
@@ -91,7 +92,7 @@ foreach($group in $groups){
     $transactionID = New-Guid
     Write-Host "Transaction ID: $transactionID"
     $successIDs = (($resp.response.Read | Where-Object {$_.status -eq "0"}).User | Select-Object -Property id).id
-    $readUsers = ($resp.response.Read.User | Select-Object -Property name).name
+    $readUsers = $resp.response.Read.User | Select-Object -Property id,name
     Set-Content -Path "$logFolder/$transactionID.json" ($successIDs | ConvertTo-Json)
     Set-Content -Path "$logFolder/users-$transactionID.json" ($readUsers | ConvertTo-Json)
     Write-Host "Reading errors if any"

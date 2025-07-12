@@ -77,7 +77,7 @@ foreach($group in $groups){
     $transactionID = New-Guid
     Write-Host "Transaction ID: $transactionID"
     $successIDs = (($resp.response.Read | Where-Object {$_.status -eq "0"}).Project | Select-Object -Property id).id
-    $readProjects = ($resp.response.Read.Project | Select-Object -Property name).name
+    $readProjects = $resp.response.Read.Project | Select-Object -Property id,name
     Set-Content -Path "$logFolder/$transactionID.json" ($successIDs | ConvertTo-Json)
     Set-Content -Path "$logFolder/projects-$transactionID.json" ($readProjects | ConvertTo-Json)
     $failedRequests = [System.Collections.ArrayList]@()
