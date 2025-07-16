@@ -68,7 +68,7 @@ $capabilities = @{
 }
 
 # Validate if all accounts are on lists
-Write-Host "Number of Bookings to create: $($bulkData.Count)"
+Write-Host "Number of Bookings to process: $($bulkData.Count)"
 $dec = Read-Host "Continue (y/N)?"
 if($dec.ToLower() -ne "y"){
     Write-Host "Aborted"
@@ -76,7 +76,7 @@ if($dec.ToLower() -ne "y"){
 }
 $bookingTypes = ($connector.SendRequest([OARequestType]::Read,@{type="BookingType"; method="all"; queryData=@{}; limit=100},$false)).response.Read.BookingType
 
-$importToSandbox = $true
+# $importToSandbox = $true
 $validateOnly = $false
 
 Write-Host "Checking users in OpenAir"
@@ -85,7 +85,10 @@ Write-Host "Checking users in OpenAir"
 Write-Host "Checking projects in OpenAir"
 . ./Functions/20.2-CheckAllProjects.ps1
 
-$validateOnly = $true
+# $validateOnly = $true
 
 Write-Host "Importing Bookings to OpenAir"
 . ./Functions/20.3-ImportBookings.ps1
+
+Write-Host "Reading Bookings from OpenAir"
+. ./Functions/20.4-ReadBookings.ps1
