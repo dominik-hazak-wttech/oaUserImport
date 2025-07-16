@@ -18,7 +18,7 @@ if(-not $bookingTypes){
     break
 }
 
-$dataToProcess = $bulkData | where-object {$_."IsInOA" -eq "IMPORT"}
+$dataToProcess = $bulkData #| where-object {$_."IsInOA" -eq "IMPORT"}
 $decision = Read-Host "You're about to add $($dataToProcess.Count) bookings. Are you sure? (type yes)"
 if($decision.ToLower() -ne "yes"){
     Write-Host "Operation aborted"
